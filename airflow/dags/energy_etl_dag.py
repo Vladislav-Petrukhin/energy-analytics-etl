@@ -44,71 +44,87 @@ spark_env = {
 }
 
 def check_data_availability():
-    """Проверка наличия данных"""
+    """Проверка наличия данных (рекурсивный поиск в подпапках)"""
     import glob
-    csv_files = glob.glob(f"{DATA_PATH}/*.csv")
+    import os
+    # Рекурсивный поиск CSV файлов в подпапках
+    csv_files = glob.glob(f"{DATA_PATH}/**/*.csv", recursive=True)
     if not csv_files:
-        raise FileNotFoundError(f"Не найдены CSV файлы в {DATA_PATH}")
-    print(f"Найдено CSV файлов: {len(csv_files)}")
+        raise FileNotFoundError(f"Не найдены CSV файлы в {DATA_PATH} (рекурсивный поиск)")
+    print(f"Найдено CSV файлов: {len(csv_files)} (включая подпапки)")
+    # Показываем первые несколько найденных файлов для диагностики
+    print(f"Примеры найденных файлов:")
+    for f in csv_files[:5]:
+        print(f"  - {f}")
     return csv_files
 
 # Task 1: Extract - Извлечение данных
-extract_task = BashOperator(
-    task_id='extract',
-    bash_command=f"""
-    docker exec energy_spark_master bash -c "
-    export POSTGRES_HOST={spark_env['POSTGRES_HOST']}
-    export POSTGRES_PORT={spark_env['POSTGRES_PORT']}
-    export POSTGRES_DB={spark_env['POSTGRES_DB']}
-    export POSTGRES_USER={spark_env['POSTGRES_USER']}
-    export POSTGRES_PASSWORD={spark_env['POSTGRES_PASSWORD']}
+def run_extract_task():
+    """Запуск Extract задачи через PySpark"""
+    import sys
+    import os
     
-    /opt/spark/bin/spark-submit \
-        --master {SPARK_MASTER} \
-        --packages org.postgresql:postgresql:42.7.1 \
-        /opt/spark/app/extract.py /opt/spark/data/raw
-    "
-    """,
+    # Устанавливаем переменные окружения
+    for key, value in spark_env.items():
+        os.environ[key] = value
+    
+    # Добавляем путь к скриптам
+    sys.path.insert(0, SPARK_JOBS_PATH)
+    
+    # Импортируем и запускаем extract с правильным путем
+    from extract import main
+    # Передаем путь к данным напрямую в функцию
+    main(data_path=DATA_PATH)
+
+extract_task = PythonOperator(
+    task_id='extract',
+    python_callable=run_extract_task,
     dag=dag,
 )
 
 # Task 2: Transform - Трансформация данных
-transform_task = BashOperator(
-    task_id='transform',
-    bash_command=f"""
-    docker exec energy_spark_master bash -c "
-    export POSTGRES_HOST={spark_env['POSTGRES_HOST']}
-    export POSTGRES_PORT={spark_env['POSTGRES_PORT']}
-    export POSTGRES_DB={spark_env['POSTGRES_DB']}
-    export POSTGRES_USER={spark_env['POSTGRES_USER']}
-    export POSTGRES_PASSWORD={spark_env['POSTGRES_PASSWORD']}
+def run_transform_task():
+    """Запуск Transform задачи через PySpark"""
+    import sys
+    import os
     
-    /opt/spark/bin/spark-submit \
-        --master {SPARK_MASTER} \
-        --packages org.postgresql:postgresql:42.7.1 \
-        /opt/spark/app/transform.py
-    "
-    """,
+    # Устанавливаем переменные окружения
+    for key, value in spark_env.items():
+        os.environ[key] = value
+    
+    # Добавляем путь к скриптам
+    sys.path.insert(0, SPARK_JOBS_PATH)
+    
+    # Импортируем и запускаем transform
+    from transform import main
+    main()
+
+transform_task = PythonOperator(
+    task_id='transform',
+    python_callable=run_transform_task,
     dag=dag,
 )
 
 # Task 3: Load - Загрузка данных в DWH
-load_task = BashOperator(
-    task_id='load',
-    bash_command=f"""
-    docker exec energy_spark_master bash -c "
-    export POSTGRES_HOST={spark_env['POSTGRES_HOST']}
-    export POSTGRES_PORT={spark_env['POSTGRES_PORT']}
-    export POSTGRES_DB={spark_env['POSTGRES_DB']}
-    export POSTGRES_USER={spark_env['POSTGRES_USER']}
-    export POSTGRES_PASSWORD={spark_env['POSTGRES_PASSWORD']}
+def run_load_task():
+    """Запуск Load задачи через PySpark"""
+    import sys
+    import os
     
-    /opt/spark/bin/spark-submit \
-        --master {SPARK_MASTER} \
-        --packages org.postgresql:postgresql:42.7.1 \
-        /opt/spark/app/load.py /opt/spark/data/processed
-    "
-    """,
+    # Устанавливаем переменные окружения
+    for key, value in spark_env.items():
+        os.environ[key] = value
+    
+    # Добавляем путь к скриптам
+    sys.path.insert(0, SPARK_JOBS_PATH)
+    
+    # Импортируем и запускаем load с правильным путем
+    from load import main
+    main(processed_path=PROCESSED_PATH)
+
+load_task = PythonOperator(
+    task_id='load',
+    python_callable=run_load_task,
     dag=dag,
 )
 

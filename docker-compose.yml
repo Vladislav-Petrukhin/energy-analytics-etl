@@ -52,7 +52,9 @@ services:
       - energy_network
 
   airflow-webserver:
-    image: apache/airflow:2.8.0
+    build:
+      context: .
+      dockerfile: docker/airflow/Dockerfile
     container_name: energy_airflow_webserver
     depends_on:
       - postgres
@@ -86,7 +88,9 @@ services:
       - energy_network
 
   airflow-scheduler:
-    image: apache/airflow:2.8.0
+    build:
+      context: .
+      dockerfile: docker/airflow/Dockerfile
     container_name: energy_airflow_scheduler
     depends_on:
       - postgres
@@ -109,7 +113,9 @@ services:
       - energy_network
 
   airflow-init:
-    image: apache/airflow:2.8.0
+    build:
+      context: .
+      dockerfile: docker/airflow/Dockerfile
     container_name: energy_airflow_init
     depends_on:
       - postgres
@@ -206,8 +212,27 @@ services:
     networks:
       - energy_network
 
+  grafana:
+    build:
+      context: .
+      dockerfile: docker/grafana/Dockerfile
+    container_name: energy_grafana
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - energy_network
+
 volumes:
   postgres_data:
+  grafana_data:
 
 networks:
   energy_network:

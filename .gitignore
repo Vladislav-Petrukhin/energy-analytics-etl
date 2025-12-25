@@ -35,12 +35,13 @@ wheels/
 .env.local
 
 # Data files (large CSV files)
+# Exclude all CSV files in raw data folder
+data/raw/**/*.csv
 data/raw/*.csv
 data/raw/*.zip
 data/raw/archive-2/
-data/processed/*.parquet
-data/processed/*.csv
-data/processed/*/
+# Exclude all processed data
+data/processed/
 
 # Airflow
 airflow/logs/

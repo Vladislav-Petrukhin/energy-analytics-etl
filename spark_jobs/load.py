@@ -30,6 +30,12 @@ def load_parquet_to_postgres(spark, parquet_path, table_name, schema_name="analy
     """
     print(f"Загрузка данных из {parquet_path} в {schema_name}.{table_name}")
     
+    # Проверяем существование пути
+    import os
+    if not os.path.exists(parquet_path):
+        print(f"Предупреждение: путь {parquet_path} не существует. Пропускаем загрузку этой таблицы.")
+        return
+    
     try:
         # Чтение Parquet файлов
         df = spark.read.parquet(parquet_path)
@@ -61,12 +67,12 @@ def load_parquet_to_postgres(spark, parquet_path, table_name, schema_name="analy
             # Определение колонок для вставки
             columns = df.columns
             columns_str = ", ".join(columns)
-            placeholders = ", ".join(["%s"] * len(columns))
             
-            # Вставка данных
+            # Вставка данных с использованием execute_values
+            # execute_values ожидает формат: INSERT ... VALUES %s (один плейсхолдер)
             insert_query = f"""
                 INSERT INTO {schema_name}.{table_name} ({columns_str})
-                VALUES ({placeholders})
+                VALUES %s
                 ON CONFLICT DO NOTHING
             """
             
@@ -148,18 +154,30 @@ def create_indexes():
         cursor.close()
         conn.close()
 
-def main():
+def main(processed_path=None):
     """Главная функция Load задачи"""
     # Путь к обработанным данным
-    processed_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/spark/data/processed"
+    if processed_path is None:
+        processed_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/airflow/data/processed"
     
-    # Создание SparkSession
+    # Создание SparkSession (локальный режим)
     spark = SparkSession.builder \
         .appName("EnergyAnalytics-Load") \
+        .master("local[*]") \
         .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.driver.memory", "2g") \
+        .config("spark.executor.memory", "2g") \
         .getOrCreate()
     
     try:
+        # Проверяем существование базового пути
+        import os
+        print(f"Базовый путь к обработанным данным: {processed_path}")
+        if not os.path.exists(processed_path):
+            print(f"Ошибка: путь {processed_path} не существует!")
+            print("Возможно, задача transform не была выполнена или не сохранила данные.")
+            raise FileNotFoundError(f"Путь к обработанным данным не найден: {processed_path}")
+        
         # Загрузка всех агрегированных данных
         print("Начало загрузки данных в DWH...")
         
@@ -179,7 +197,7 @@ def main():
         print(f"Ошибка в Load задаче: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        raise
     finally:
         spark.stop()
 

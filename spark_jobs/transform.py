@@ -234,12 +234,15 @@ def transform_data(spark):
 
 def main():
     """Главная функция Transform задачи"""
-    # Создание SparkSession
+    # Создание SparkSession (локальный режим)
     spark = SparkSession.builder \
         .appName("EnergyAnalytics-Transform") \
+        .master("local[*]") \
         .config("spark.sql.adaptive.enabled", "true") \
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
         .config("spark.jars.packages", "org.postgresql:postgresql:42.7.1") \
+        .config("spark.driver.memory", "2g") \
+        .config("spark.executor.memory", "2g") \
         .getOrCreate()
     
     try:
@@ -248,7 +251,7 @@ def main():
         
         # Сохранение результатов во временные таблицы для последующей загрузки
         print("Сохранение результатов трансформации...")
-        processed_base_path = "/opt/spark/data/processed"
+        processed_base_path = "/opt/airflow/data/processed"
         import os
         os.makedirs(processed_base_path, exist_ok=True)
         
@@ -263,7 +266,7 @@ def main():
         print(f"Ошибка в Transform задаче: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        raise
     finally:
         spark.stop()
 
